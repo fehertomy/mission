@@ -1,2 +1,686 @@
-# mission.github.io
-Mission to the big day
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMF Secure Terminal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #00ff41;
+    --green-dim: #00a829;
+    --green-dark: #004d14;
+    --bg: #0a0a0a;
+    --amber: #ffcc00;
+    --red: #ff3333;
+    --gray: #444;
+    --font: 'Share Tech Mono', 'Courier New', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--green);
+    font-family: var(--font);
+    overflow: hidden;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── SCREENS ── */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .screen.active { display: flex; }
+
+  /* ════════════════════════════
+     SCREEN 1 — LOGIN
+  ════════════════════════════ */
+  #s-login {
+    flex-direction: column;
+  }
+
+  /* decorative noise items */
+  .noise {
+    position: fixed;
+    font-size: 11px;
+    color: var(--green-dark);
+    line-height: 1.6;
+    pointer-events: none;
+    user-select: none;
+  }
+  #n-tl { top: 18px; left: 20px; }
+  #n-tr { top: 18px; right: 20px; text-align: right; }
+  #n-bl { bottom: 18px; left: 20px; }
+  #n-br { bottom: 18px; right: 20px; text-align: right; }
+  #n-mid-l { top: 50%; left: 20px; transform: translateY(-50%); }
+  #n-mid-r { top: 50%; right: 20px; transform: translateY(-50%); text-align: right; }
+
+  /* post-it */
+  #postit {
+    position: fixed;
+    top: 28px;
+    right: 180px;
+    background: #fffde7;
+    color: #333;
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 10px 14px 14px;
+    transform: rotate(2deg);
+    box-shadow: 2px 3px 8px rgba(0,0,0,0.5);
+    line-height: 1.6;
+    z-index: 10;
+    min-width: 100px;
+  }
+  #postit .pi-title { font-size: 15px; font-weight: bold; color: #111; }
+  #postit .pi-date { color: #555; font-size: 12px; letter-spacing: 0.05em; }
+
+  /* login box */
+  #login-box {
+    border: 1px solid var(--green-dim);
+    padding: 2rem 2.5rem;
+    width: min(420px, 90vw);
+    background: rgba(0,10,0,0.9);
+  }
+
+  .box-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .box-header .blink-cursor { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .box-title { font-size: 15px; letter-spacing: 0.15em; color: var(--green); margin-bottom: 4px; }
+  .box-sub { font-size: 11px; color: var(--green-dim); letter-spacing: 0.1em; }
+
+  .divider { border: none; border-top: 1px solid var(--green-dark); margin: 1rem 0; }
+
+  .field-label {
+    font-size: 12px;
+    color: var(--green-dim);
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .field-wrap { margin-bottom: 1rem; }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    background: #000;
+    border: 1px solid var(--green-dark);
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 14px;
+    padding: 7px 10px;
+    outline: none;
+    caret-color: var(--green);
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--green); }
+
+  #login-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--font);
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    padding: 9px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 0.5rem;
+  }
+  #login-btn:hover { background: rgba(0,255,65,0.08); }
+
+  #error-msg {
+    font-size: 11px;
+    color: var(--red);
+    margin-top: 0.6rem;
+    min-height: 14px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ════════════════════════════
+     SCREEN 2 — BOOT
+  ════════════════════════════ */
+  #s-boot {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 3rem;
+  }
+  #boot-lines { width: min(600px, 90vw); }
+  .boot-row {
+    font-size: 13px;
+    line-height: 2;
+    display: flex;
+    gap: 0;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .boot-row.visible { opacity: 1; }
+  .boot-key { color: var(--green-dim); min-width: 220px; }
+  .boot-val { color: var(--green); }
+  .boot-val.critical { color: var(--red); }
+  .boot-val.ok { color: var(--amber); }
+
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+  }
+  #loading-overlay.show { opacity: 1; pointer-events: all; }
+  #loading-bar-wrap {
+    width: 300px;
+    border: 1px solid var(--green-dim);
+    height: 16px;
+    margin-top: 1.2rem;
+    overflow: hidden;
+  }
+  #loading-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--green);
+    transition: width 0.1s linear;
+  }
+  #loading-label { font-size: 13px; letter-spacing: 0.1em; color: var(--green-dim); margin-top: 0.5rem; }
+
+  /* ════════════════════════════
+     SCREEN 3 — MISSION
+  ════════════════════════════ */
+  #s-mission {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 3rem;
+    overflow-y: auto;
+  }
+  #mission-text {
+    width: min(680px, 90vw);
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--green);
+    white-space: pre-wrap;
+  }
+  #mission-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: var(--green);
+    vertical-align: middle;
+    animation: blink 0.8s step-end infinite;
+  }
+
+  #mission-actions {
+    display: none;
+    margin-top: 2rem;
+    width: min(680px, 90vw);
+  }
+  .act-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .act-btn {
+    padding: 0.6rem 2rem;
+    font-family: var(--font);
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    border: 1px solid;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  #btn-accept { color: var(--green); border-color: var(--green); }
+  #btn-accept:hover { background: rgba(0,255,65,0.1); }
+  #btn-decline { color: var(--red); border-color: var(--red); }
+  #btn-decline:hover { background: rgba(255,51,51,0.1); }
+
+  #decline-note {
+    font-size: 11px;
+    color: var(--red);
+    display: none;
+    margin-top: 0.3rem;
+  }
+
+  #countdown-section {
+    display: none;
+    margin-top: 1rem;
+  }
+  #countdown-label { font-size: 11px; color: var(--red); letter-spacing: 0.08em; }
+  #countdown-num { font-size: 2.5rem; color: var(--red); line-height: 1.2; }
+
+  /* ════════════════════════════
+     SCREEN 4 — TV OFF / CONGRATS
+  ════════════════════════════ */
+  #s-end {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #tv-off {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  #tv-line {
+    width: 100%;
+    height: 0px;
+    background: #fff;
+    box-shadow: 0 0 30px 8px #fff;
+    transition: height 0.05s;
+  }
+
+  #s-end-inner {
+    text-align: center;
+    padding: 2rem;
+    display: none;
+  }
+  #s-end-inner .congrats-big {
+    font-size: clamp(20px, 4vw, 32px);
+    letter-spacing: 0.1em;
+    color: var(--amber);
+    margin-bottom: 1.5rem;
+  }
+  #s-end-inner .congrats-sub {
+    font-size: 14px;
+    color: var(--green-dim);
+    line-height: 2;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  #s-end-inner .congrats-emoji {
+    font-size: 2.5rem;
+    margin: 1.5rem 0;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════ SCREEN 1: LOGIN ════════ -->
+<div id="s-login" class="screen active">
+
+  <!-- Noise: decorative wedding terminal junk -->
+  <div class="noise" id="n-tl">
+    IMF_NET v4.2.1<br>
+    ENCRYPT: AES-256<br>
+    NODE: HU-BPEST-07<br>
+    ████████░░░░ 67%<br>
+    HANDSHAKE OK
+  </div>
+  <div class="noise" id="n-tr">
+    SYS: ONLINE<br>
+    PING: 12ms<br>
+    UPTIME: 99.97%<br>
+    FIREWALL: ACTIVE<br>
+    THREAT LVL: LOW
+  </div>
+  <div class="noise" id="n-mid-l">
+    <br>†<br>
+    ╔══╗<br>
+    ║  ║<br>
+    ╚══╝<br>
+    <br>
+    ⌀ ⌀<br>
+    ───<br>
+    RINGS<br>
+  </div>
+  <div class="noise" id="n-mid-r">
+    ╔══════╗<br>
+    ║ ██  ║<br>
+    ╠══════╣<br>
+    ║▓▓▓▓▓▓║<br>
+    ╚══════╝<br>
+    CAKE.EXE<br>
+    <br>
+    &lt;3<br>
+  </div>
+  <div class="noise" id="n-bl">
+    LAST LOGIN: ??<br>
+    SESSIONS: 1<br>
+    LOC: CLASSIFIED<br>
+    AUTH: REQUIRED
+  </div>
+  <div class="noise" id="n-br">
+    PROTOCOL: SSH-2<br>
+    CIPHER: CHACHA20<br>
+    KEY: RSA-4096<br>
+    STATUS: WAITING
+  </div>
+
+  <!-- Post-it hint -->
+  <div id="postit">
+    <div class="pi-title">Arló</div>
+    <div class="pi-date">xxxx.xx.xx</div>
+  </div>
+
+  <!-- Login box -->
+  <div id="login-box">
+    <div class="box-header">
+      <div class="box-title">IMF SECURE TERMINAL<span class="blink-cursor">_</span></div>
+      <div class="box-sub">AUTHORIZED ACCESS ONLY</div>
+    </div>
+    <hr class="divider">
+    <div class="field-wrap">
+      <label class="field-label" for="uname">USERNAME:</label>
+      <input type="text" id="uname" value="akos_feher" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" for="passwd">PASSWORD:</label>
+      <input type="password" id="passwd" placeholder="________" autocomplete="off" spellcheck="false">
+    </div>
+    <button id="login-btn" onclick="doLogin()">[ LOGIN ]</button>
+    <div id="error-msg"></div>
+  </div>
+
+</div>
+
+<!-- ════════ SCREEN 2: BOOT ════════ -->
+<div id="s-boot" class="screen">
+  <div id="boot-lines"></div>
+</div>
+
+<!-- Loading overlay (inside boot screen) -->
+<div id="loading-overlay">
+  <div style="font-size:13px; letter-spacing:0.15em; color:var(--green);">LOADING MISSION...</div>
+  <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+  <div id="loading-label">0%</div>
+</div>
+
+<!-- ════════ SCREEN 3: MISSION ════════ -->
+<div id="s-mission" class="screen">
+  <div id="mission-text"></div><span id="mission-cursor"></span>
+  <div id="mission-actions">
+    <div class="act-row">
+      <button class="act-btn" id="btn-accept" onclick="acceptMission()">[ ELFOGADOM ]</button>
+      <button class="act-btn" id="btn-decline" onclick="declineMission()">[ ELUTASÍTOM ]</button>
+    </div>
+    <div id="decline-note">A visszautasítás opció 2003 óta nem elérhető ebben a rendszerben.</div>
+    <div id="countdown-section">
+      <div id="countdown-label">AZ ÜZENET MEGSEMMISÜL...</div>
+      <div id="countdown-num">5</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SCREEN 4: TV OFF ════════ -->
+<div id="tv-off">
+  <div id="tv-line"></div>
+</div>
+
+<div id="s-end" class="screen">
+  <div id="s-end-inner">
+    <div class="congrats-big">✦ GRATULÁLUNK ✦</div>
+    <span class="congrats-emoji">💍</span>
+    <div class="congrats-sub">
+      Fel lettél kérve esküvői tanúnak.<br><br>
+      Oszd meg a döntésed azzal,<br>akitől a linket kaptad!
+    </div>
+  </div>
+</div>
+
+<script>
+// ── LOGIN ──
+let tries = 0;
+
+document.getElementById('passwd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function doLogin() {
+  const u = document.getElementById('uname').value.trim();
+  const p = document.getElementById('passwd').value.trim();
+  const err = document.getElementById('error-msg');
+
+  if (p === '20260627') {
+    err.textContent = '';
+    startBoot();
+    return;
+  }
+
+  tries++;
+  if (tries >= 20) {
+    err.textContent = '✗ Helytelen. Tipp: egy dátumot keresel. (8 szám)';
+  } else if (tries >= 10) {
+    err.textContent = '✗ Helytelen. Tipp: nézz körül a zajban — 8 számot keresel.';
+  } else {
+    err.textContent = '✗ Helytelen jelszó. Próbáld újra.';
+  }
+}
+
+// ── BOOT SEQUENCE ──
+const bootData = [
+  { key: 'Name:', val: 'Akos Feher', cls: '' },
+  { key: 'Mission date:', val: '2026.06.27', cls: '' },
+  { key: 'Mission location:', val: 'Arló, Suvadás Liget', cls: '' },
+  { key: 'Priority:', val: 'CRITICAL!', cls: 'critical' },
+  { key: 'Confidentiality:', val: 'VERY CONFIDENTIAL', cls: 'critical' },
+  { key: 'Secure connection:', val: 'Established!', cls: 'ok' },
+  { key: 'Mission:', val: '......', cls: '' },
+];
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function typeVal(el, text, speed) {
+  el.textContent = '';
+  for (const ch of text) {
+    el.textContent += ch;
+    await sleep(speed + Math.random() * 30);
+  }
+}
+
+async function startBoot() {
+  showScreen('s-boot');
+  await sleep(400);
+
+  const container = document.getElementById('boot-lines');
+
+  for (const row of bootData) {
+    const div = document.createElement('div');
+    div.className = 'boot-row';
+    const keySpan = document.createElement('span');
+    keySpan.className = 'boot-key';
+    keySpan.textContent = row.key;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'boot-val ' + row.cls;
+    div.appendChild(keySpan);
+    div.appendChild(valSpan);
+    container.appendChild(div);
+
+    await sleep(150);
+    div.classList.add('visible');
+    await typeVal(valSpan, row.val, 55);
+    await sleep(180);
+  }
+
+  await sleep(600);
+
+  // show loading overlay
+  const ov = document.getElementById('loading-overlay');
+  ov.classList.add('show');
+  const bar = document.getElementById('loading-bar');
+  const lbl = document.getElementById('loading-label');
+  let pct = 0;
+  await sleep(100);
+  const iv = setInterval(() => {
+    pct += Math.random() * 12 + 3;
+    if (pct >= 100) { pct = 100; clearInterval(iv); }
+    bar.style.width = pct + '%';
+    lbl.textContent = Math.floor(pct) + '%';
+  }, 130);
+  await sleep(2600);
+  ov.classList.remove('show');
+  await sleep(400);
+
+  startMission();
+}
+
+// ── MISSION TEXT ──
+const missionText = `Jó reggelt, Ákos!
+
+Egy rendkívül fontos küldetéssel kell megbíznunk.
+
+Be kell épülnöd egy lagzis tömegbe. A cél a beolvadás.
+Ehhez szükséged lesz egy jól szabott öltönyre — reméljük,
+ezzel már rendelkezel. Ha nem, akkor 48 órád van szerezni egyet.
+
+Az eseményen stratégiai pozíciót kell elfoglalnod a polgári
+ceremónián. Készülj, mert az álló- és ülőképességed
+próbára lesz téve.
+
+Figyelj, és szerezz bizonyosságot arról, hogy mindkét fél
+igent mondott. Ezt majd tanúsítanod kell.
+Saját szemeddel kell meggyőződnöd róla.
+
+Ha az anyakönyvvezető jelez, aktiválnod kell a titkos fegyvert:
+egy egyszerű tollat. Amivel be kell vinned egy szép aláírást
+egyetlen dokumentumra. De vigyázz — a művelet veszélyes lehet!
+
+A ceremónia végeztével a feladat az elvegyülés,
+olvadj vissza a tömegbe.
+Küldetés utolsó fázisa: érezd magad jól.
+
+─────────────────────────────────────────
+
+Mint mindig — ha téged vagy csapatod bármelyik tagját
+elfogják vagy megölik, a miniszter letagadja,
+hogy tudott az akcióitokról.
+
+Ez az üzenet öt másodpercen belül
+megsemmisíti önmagát.
+
+Sok szerencsét, Ákos.`;
+
+async function startMission() {
+  showScreen('s-mission');
+  await sleep(300);
+
+  const el = document.getElementById('mission-text');
+  const cur = document.getElementById('mission-cursor');
+  const scr = document.getElementById('s-mission');
+  cur.style.display = 'inline-block';
+
+  for (const ch of missionText) {
+    el.textContent += ch;
+    scr.scrollTop = scr.scrollHeight;
+    const delay = ch === '\n' ? 30 : (Math.random() < 0.015 ? 120 : 28);
+    await sleep(delay);
+  }
+
+  cur.style.display = 'none';
+  document.getElementById('mission-actions').style.display = 'block';
+  scr.scrollTop = scr.scrollHeight;
+}
+
+// ── MISSION ACTIONS ──
+let declineTries = 0;
+const declineMessages = [
+  'Biztos? Ezt nem ajánlom!',
+  'Naaaaaaa....Tuti?',
+  'Elutasítani egy küldetést súlyos következményekkel járna...',
+  '☠',
+];
+
+function acceptMission() {
+  document.getElementById('btn-accept').disabled = true;
+  document.getElementById('btn-decline').disabled = true;
+  document.getElementById('decline-note').style.display = 'none';
+  document.getElementById('countdown-section').style.display = 'block';
+
+  let n = 5;
+  document.getElementById('countdown-num').textContent = n;
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv);
+      document.getElementById('countdown-num').textContent = '0';
+      setTimeout(tvOff, 400);
+    } else {
+      document.getElementById('countdown-num').textContent = n;
+    }
+  }, 1000);
+}
+
+function declineMission() {
+  declineTries++;
+  const note = document.getElementById('decline-note');
+  const btn = document.getElementById('btn-decline');
+
+  if (declineTries <= 4) {
+    note.style.display = 'block';
+    note.textContent = declineMessages[declineTries - 1];
+  }
+
+  if (declineTries >= 5) {
+    // transform decline button into accept
+    note.style.display = 'none';
+    btn.textContent = '[ ELFOGADOM ]';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+    btn.onclick = acceptMission;
+  }
+}
+
+// ── TV OFF ANIMATION ──
+async function tvOff() {
+  const tvEl = document.getElementById('tv-off');
+  tvEl.style.display = 'flex';
+
+  // flicker
+  for (let i = 0; i < 3; i++) {
+    tvEl.style.opacity = '0';
+    await sleep(60);
+    tvEl.style.opacity = '1';
+    await sleep(80);
+  }
+
+  const line = document.getElementById('tv-line');
+  // horizontal shrink: line appears briefly then collapses
+  line.style.height = '3px';
+  await sleep(300);
+  line.style.height = '0px';
+  await sleep(500);
+
+  tvEl.style.display = 'none';
+  showScreen('s-end');
+  await sleep(400);
+  document.getElementById('s-end-inner').style.display = 'block';
+}
+
+// ── UTILITY ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+</script>
+</body>
+</html>
